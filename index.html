@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador 3D da Estante - Versão Final</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            display: block;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px 0;
+            border-radius: 0 0 15px 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        #info h1 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        #info p {
+            margin: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <h1>Estante Acessível - Design Final (1.55m)</h1>
+        <p>Use o mouse para interagir: <strong>Botão esquerdo:</strong> Girar | <strong>Roda do mouse:</strong> Zoom | <strong>Botão direito:</strong> Mover</p>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Configuração da Cena ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(160, 140, 300); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // --- Controles ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 50;
+        controls.maxDistance = 600;
+        controls.maxPolarAngle = Math.PI / 1.8;
+
+        // --- Iluminação ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        directionalLight.position.set(100, 200, 150);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+        
+        // --- Chão ---
+        const groundGeometry = new THREE.PlaneGeometry(2000, 2000);
+        const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -77.5; // Alinha com a base (155/2)
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // --- Montagem da Estante (Dimensões Finais 1.55m) ---
+        const shelfGroup = new THREE.Group();
+
+        const alturaTotal = 155;
+        const larguraTotal = 220;
+        const profundidadeTotal = 30;
+        const espessura = 1.5;
+        const espessuraFundo = 0.3;
+
+        const mdfMaterial = new THREE.MeshStandardMaterial({
+            color: 0xD2B48C,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+
+        // 1. Estrutura Externa
+        const lateralGeo = new THREE.BoxGeometry(espessura, alturaTotal, profundidadeTotal);
+        const lateralEsquerda = new THREE.Mesh(lateralGeo, mdfMaterial);
+        lateralEsquerda.position.set(-larguraTotal / 2 + espessura / 2, 0, 0);
+        lateralEsquerda.castShadow = true;
+        shelfGroup.add(lateralEsquerda);
+
+        const lateralDireita = new THREE.Mesh(lateralGeo, mdfMaterial);
+        lateralDireita.position.set(larguraTotal / 2 - espessura / 2, 0, 0);
+        lateralDireita.castShadow = true;
+        shelfGroup.add(lateralDireita);
+        
+        const h_geo = new THREE.BoxGeometry(larguraTotal - 2 * espessura, espessura, profundidadeTotal);
+        const base = new THREE.Mesh(h_geo, mdfMaterial);
+        base.position.y = -alturaTotal / 2 + espessura / 2;
+        base.castShadow = true;
+        shelfGroup.add(base);
+
+        const topo = new THREE.Mesh(h_geo, mdfMaterial);
+        topo.position.y = alturaTotal / 2 - espessura / 2;
+        topo.castShadow = true;
+        shelfGroup.add(topo);
+
+        // 2. Divisória Vertical Central
+        const alturaInterna = alturaTotal - (2 * espessura);
+        const divisorGeo = new THREE.BoxGeometry(espessura, alturaInterna, profundidadeTotal);
+        const divisorCentral = new THREE.Mesh(divisorGeo, mdfMaterial);
+        divisorCentral.castShadow = true;
+        shelfGroup.add(divisorCentral);
+
+        // 3. Prateleiras Internas (3 níveis)
+        const larguraVao = (larguraTotal - 3 * espessura) / 2;
+        const prateleiraGeo = new THREE.BoxGeometry(larguraVao, espessura, profundidadeTotal);
+        
+        const numPrateleiras = 3;
+        // Cálculo corrigido do espaço vertical
+        const espacoVerticalTotalMadeira = (numPrateleiras + 2) * espessura;
+        const espacoLivre = alturaTotal - espacoVerticalTotalMadeira;
+        const espacoPorVao = espacoLivre / (numPrateleiras + 1); // 4 vãos
+
+        for (let i = 0; i < numPrateleiras; i++) {
+            // Posição Y calculada de baixo para cima
+            const yPos = (-alturaTotal / 2) + espessura + espacoPorVao * (i + 1) + espessura * i;
+            
+            const pEsquerda = new THREE.Mesh(prateleiraGeo, mdfMaterial);
+            pEsquerda.position.set(-(larguraVao + espessura) / 2, yPos, 0);
+            pEsquerda.castShadow = true;
+            shelfGroup.add(pEsquerda);
+
+            const pDireita = new THREE.Mesh(prateleiraGeo, mdfMaterial);
+            pDireita.position.set((larguraVao + espessura) / 2, yPos, 0);
+            pDireita.castShadow = true;
+            shelfGroup.add(pDireita);
+        }
+
+        // 4. Fundo da Estante
+        const fundoGeo = new THREE.BoxGeometry(larguraTotal, alturaTotal, espessuraFundo);
+        const fundo = new THREE.Mesh(fundoGeo, mdfMaterial);
+        fundo.position.z = -profundidadeTotal / 2 + espessuraFundo / 2;
+        shelfGroup.add(fundo);
+
+        shelfGroup.position.y = 77.5;
+        scene.add(shelfGroup);
+
+        // --- Animação ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
+
