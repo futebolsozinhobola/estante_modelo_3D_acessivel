@@ -109,6 +109,8 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
         let intersectedObject = null;
         let mouseX = 0, mouseY = 0;
@@ -125,7 +127,6 @@
         const labels = [];
 
         function init() {
-            // --- Configuração da Cena ---
             scene.background = new THREE.Color(0xe8e8e8);
             scene.fog = new THREE.Fog(0xe8e8e8, 400, 1200);
 
@@ -136,14 +137,12 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // --- Controles ---
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
             controls.minDistance = 100;
             controls.maxDistance = 800;
             controls.maxPolarAngle = Math.PI / 2.1;
 
-            // --- Iluminação ---
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambientLight);
 
@@ -153,7 +152,6 @@
             directionalLight.shadow.mapSize.set(2048, 2048);
             scene.add(directionalLight);
             
-            // --- Chão ---
             const ground = new THREE.Mesh(
                 new THREE.PlaneGeometry(2000, 2000),
                 new THREE.MeshStandardMaterial({ color: 0xdcdcdc, roughness: 0.8 })
@@ -173,29 +171,52 @@
             const alturaTotal = 140, larguraTotal = 220, profundidadeTotal = 30, espessura = 1.5;
             const mdfMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
 
-            // --- Estrutura Principal ---
-            shelfGroup.add(new THREE.Mesh(new THREE.BoxGeometry(espessura, alturaTotal, profundidadeTotal), mdfMaterial).translateX(-larguraTotal / 2 + espessura / 2));
-            shelfGroup.add(new THREE.Mesh(new THREE.BoxGeometry(espessura, alturaTotal, profundidadeTotal), mdfMaterial).translateX(larguraTotal / 2 - espessura / 2));
-            shelfGroup.add(new THREE.Mesh(new THREE.BoxGeometry(larguraTotal - 2 * espessura, espessura, profundidadeTotal), mdfMaterial).translateY(-alturaTotal/2 + espessura/2));
-            shelfGroup.add(new THREE.Mesh(new THREE.BoxGeometry(larguraTotal - 2 * espessura, espessura, profundidadeTotal), mdfMaterial).translateY(alturaTotal/2 - espessura/2));
-            shelfGroup.add(new THREE.Mesh(new THREE.BoxGeometry(espessura, alturaTotal - 2 * espessura, profundidadeTotal), mdfMaterial));
-            shelfGroup.add(new THREE.Mesh(new THREE.BoxGeometry(larguraTotal, alturaTotal, 0.3), mdfMaterial).translateZ(-profundidadeTotal/2 + 0.15));
+            const base = new THREE.Mesh(new THREE.BoxGeometry(larguraTotal, espessura, profundidadeTotal), mdfMaterial);
+            base.position.y = espessura / 2;
+            shelfGroup.add(base);
 
+            const topo = new THREE.Mesh(new THREE.BoxGeometry(larguraTotal, espessura, profundidadeTotal), mdfMaterial);
+            topo.position.y = alturaTotal - espessura / 2;
+            shelfGroup.add(topo);
+            
+            const lateralEsquerda = new THREE.Mesh(new THREE.BoxGeometry(espessura, alturaTotal, profundidadeTotal), mdfMaterial);
+            lateralEsquerda.position.set(-larguraTotal / 2 + espessura / 2, alturaTotal / 2, 0);
+            shelfGroup.add(lateralEsquerda);
+
+            const lateralDireita = new THREE.Mesh(new THREE.BoxGeometry(espessura, alturaTotal, profundidadeTotal), mdfMaterial);
+            lateralDireita.position.set(larguraTotal / 2 - espessura / 2, alturaTotal / 2, 0);
+            shelfGroup.add(lateralDireita);
+            
+            const alturaInterna = alturaTotal - (2 * espessura);
+            const divisorCentral = new THREE.Mesh(new THREE.BoxGeometry(espessura, alturaInterna, profundidadeTotal), mdfMaterial);
+            divisorCentral.position.y = alturaTotal / 2;
+            shelfGroup.add(divisorCentral);
+
+            const fundo = new THREE.Mesh(new THREE.BoxGeometry(larguraTotal, alturaTotal, 0.3), mdfMaterial);
+            fundo.position.set(0, alturaTotal / 2, -profundidadeTotal / 2 + 0.15);
+            shelfGroup.add(fundo);
+            
             const larguraVao = (larguraTotal - 3 * espessura) / 2;
             const prateleiraGeo = new THREE.BoxGeometry(larguraVao, espessura, profundidadeTotal);
-            const espacoVaoVertical = (alturaTotal - 5 * espessura) / 4;
+            const espacoLivreVertical = alturaTotal - (5 * espessura); 
+            const espacoVaoVertical = espacoLivreVertical / 4; 
 
             for (let i = 1; i <= 3; i++) {
-                const yPos = -alturaTotal/2 + (espessura + espacoVaoVertical) * i;
-                shelfGroup.add(new THREE.Mesh(prateleiraGeo, mdfMaterial).position.set(-(larguraVao + espessura) / 2, yPos, 0));
-                shelfGroup.add(new THREE.Mesh(prateleiraGeo, mdfMaterial).position.set((larguraVao + espessura) / 2, yPos, 0));
+                const yPos = espessura + (espacoVaoVertical * i) + (espessura * (i - 1));
+                const pE = new THREE.Mesh(prateleiraGeo, mdfMaterial);
+                pE.position.set(-(larguraVao + espessura) / 2, yPos, 0);
+                shelfGroup.add(pE);
+                const pD = new THREE.Mesh(prateleiraGeo, mdfMaterial);
+                pD.position.set((larguraVao + espessura) / 2, yPos, 0);
+                shelfGroup.add(pD);
             }
             
-            shelfGroup.children.forEach(child => child.castShadow = true);
-            shelfGroup.position.y = alturaTotal / 2;
+            shelfGroup.children.forEach(child => {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            });
             scene.add(shelfGroup);
 
-            // --- Seções Interativas, Livros e Títulos ---
             const sectionContent = [
                 { title: "Contos Clássicos", description: "Histórias infantis, poesias e livros de texturas e sons.", colors: ['#FFC300', '#3375FF', '#FF5733'] },
                 { title: "Formas e Cores", description: "Explorando o mundo através de formas geométricas e cores primárias.", colors: ['#FF5733', '#FFC300', '#3375FF'] },
@@ -207,17 +228,17 @@
                 { title: "Biografias Inspiradoras", description: "A vida de personalidades como Tesla, Newton e Joana D'arc.", colors: ['#7B241C', '#F1C40F', '#512E5F'] }
             ];
             
-            const triggerGeo = new THREE.BoxGeometry(larguraVao, espacoVaoVertical, profundidadeTotal - 1);
+            const triggerGeo = new THREE.BoxGeometry(larguraVao, espacoVaoVertical, profundidadeTotal);
             const triggerMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
 
             let contentIndex = 0;
-            for (let i = 0; i < 4; i++) { // Níveis
-                for (let j = -1; j <= 1; j += 2) { // Lado (Esquerda/Direita)
-                    const yPos = -alturaTotal/2 + espessura + espacoVaoVertical/2 + (espacoVaoVertical + espessura) * i;
-                    const xPos = j * (larguraVao + espessura) / 2;
+            for (let i = 0; i < 4; i++) {
+                for (let j = -1; j <= 1; j += 2) {
+                    const yCenter = espessura + espacoVaoVertical/2 + i * (espacoVaoVertical + espessura);
+                    const xCenter = j * (larguraVao + espessura) / 2;
 
                     const trigger = new THREE.Mesh(triggerGeo, triggerMaterial);
-                    trigger.position.set(xPos, yPos, 0);
+                    trigger.position.set(xCenter, yCenter, 0);
                     trigger.userData = sectionContent[contentIndex];
                     shelfGroup.add(trigger);
                     interactiveObjects.push(trigger);
@@ -228,10 +249,64 @@
                     labelsContainer.appendChild(labelDiv);
                     labels.push({ trigger: trigger, element: labelDiv });
 
-                    fillSection(xPos, yPos, larguraVao, espacoVaoVertical, sectionContent[contentIndex].colors, shelfGroup);
+                    fillSection(xCenter, yCenter, larguraVao, espacoVaoVertical, sectionContent[contentIndex].colors, shelfGroup);
                     contentIndex++;
                 }
             }
+
+            // --- NOVO: Adiciona as medidas ---
+            createDimensionLabels(larguraTotal, alturaTotal, profundidadeTotal);
+        }
+        
+        function createDimensionLabels(width, height, depth) {
+            const loader = new FontLoader();
+            loader.load('https://cdn.jsdelivr.net/npm/three@0.164.1/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+                const textMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+                const lineMaterial = new THREE.LineBasicMaterial({ color: 0x333333 });
+                const dimensionsGroup = new THREE.Group();
+                const textSize = 5;
+                
+                // --- Largura (2,20m) ---
+                const widthTextGeo = new TextGeometry('2,20m', { font: font, size: textSize, height: 0.1 });
+                const widthText = new THREE.Mesh(widthTextGeo, textMaterial);
+                widthText.geometry.center();
+                widthText.position.set(0, height + 15, 0);
+                dimensionsGroup.add(widthText);
+                
+                const widthLine = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-width/2, height + 8, 0), new THREE.Vector3(width/2, height + 8, 0)
+                ]);
+                dimensionsGroup.add(new THREE.Line(widthLine, lineMaterial));
+
+                // --- Altura (1,40m) ---
+                const heightTextGeo = new TextGeometry('1,40m', { font: font, size: textSize, height: 0.1 });
+                const heightText = new THREE.Mesh(heightTextGeo, textMaterial);
+                heightText.geometry.center();
+                heightText.rotation.z = Math.PI / 2;
+                heightText.position.set(width / 2 + 15, height / 2, 0);
+                dimensionsGroup.add(heightText);
+
+                const heightLine = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(width/2 + 8, 0, 0), new THREE.Vector3(width/2 + 8, height, 0)
+                ]);
+                dimensionsGroup.add(new THREE.Line(heightLine, lineMaterial));
+
+                // --- Profundidade (30cm) ---
+                const depthTextGeo = new TextGeometry('30cm', { font: font, size: textSize, height: 0.1 });
+                const depthText = new THREE.Mesh(depthTextGeo, textMaterial);
+                depthText.geometry.center();
+                depthText.rotation.y = Math.PI / 2;
+                depthText.position.set(width / 2, height/2, depth/2 + 15);
+                dimensionsGroup.add(depthText);
+
+                 const depthLine = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(width/2, height/2, -depth/2), new THREE.Vector3(width/2, height/2, depth/2)
+                ]);
+                dimensionsGroup.add(new THREE.Line(depthLine, lineMaterial));
+
+
+                scene.add(dimensionsGroup);
+            });
         }
 
         function createBook(w, h, d, color) {
@@ -239,27 +314,23 @@
             const geo = new THREE.BoxGeometry(w, h, d);
             const book = new THREE.Mesh(geo, mat);
             book.castShadow = true;
+            book.receiveShadow = true;
             return book;
         }
         
         function fillSection(x, y, w, h, colors, group) {
-            for(let i=0; i < 5; i++) {
-                // Tamanhos corrigidos para não clipar
-                const bookW = 8 + Math.random() * (w / 4.5);
-                const bookH = h * 0.7 + Math.random() * (h * 0.25);
-                const bookD = 26; // Profundidade segura e consistente
+            const bookW = w * 0.5;
+            const bookH = h * 0.8; 
+            const bookD = 26; 
 
-                const book = createBook(bookW, bookH, bookD, colors[i % colors.length]);
-                
-                // Posicionamento horizontal corrigido para ficar dentro dos limites
-                const randomXOffset = (Math.random() - 0.5) * (w - bookW - 4); // -4 para uma margem
-                const bookX = x + randomXOffset;
-                const bookY = y - h/2 + bookH/2; // Alinha pela base da prateleira
+            const book = createBook(bookW, bookH, bookD, colors[0]);
+            
+            const shelfTopY = y - h / 2;
+            const bookY = shelfTopY + bookH / 2; 
 
-                book.position.set(bookX, bookY, 0);
-                book.rotation.y = (Math.random() - 0.5) * 0.2;
-                group.add(book);
-            }
+            book.position.set(x, bookY, 0);
+            
+            group.add(book);
         }
 
         function onMouseMove(event) {
@@ -295,7 +366,6 @@
                 intersectedObject = null;
             }
 
-            // Atualiza a posição dos títulos visíveis
             for (const labelInfo of labels) {
                 const { trigger, element } = labelInfo;
                 const worldPosition = new THREE.Vector3();
